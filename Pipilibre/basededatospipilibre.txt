@@ -1,0 +1,32 @@
+DROP DATABASE IF EXISTS Lospipislibres;
+CREATE DATABASE Lospipislibres;
+USE Lospipislibres;
+
+CREATE TABLE usuario(
+    id_usuario int AUTO_INCREMENT primary key not null,
+    Nombre varchar(15) not null,
+    correo_eletronico varchar(100) not null,
+    contraseña VARCHAR(255) not null,
+    saldo decimal(20,2) default 0
+);
+
+Create Table publicacion(
+	id_publicacion int auto_increment primary key not null,
+    id_autor int NOT NULL,
+    descripcion VARCHAR(255),
+    imagen VARCHAR(255),
+    precio decimal(20,2) not null,
+    stock int,
+    FOREIGN KEY(id_autor) REFERENCES usuario(id_usuario)
+    
+);
+
+Create Table compra(
+	id_compra int auto_increment primary key,
+    id_comprador int NOT NULL,
+    id_publicacion int NOT NULL,
+    fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    foreign key(id_comprador) references usuario(id_usuario),
+	foreign key(id_publicacion)	references publicacion(id_publicacion)
+    
+);
