@@ -1,6 +1,6 @@
-PIPILIBRES
-Este proyecto consiste en una página web de comercialización de productos.
-La problemática a la que recurrimos para cumplir con la consigna asignada es la falta de stock de productos, y la excesiva demanda de dichos productos.
+PIPILIBRES: 
+Es una plataforma de e-commerce diseñada para optimizar la comercialización de productos en entornos de alta rotación. El proyecto surge como respuesta a los desafíos actuales de la cadena de suministro, enfocándose específicamente en resolver la brecha entre la demanda masiva y la disponibilidad crítica de stock, garantizando una gestión eficiente para el usuario final.
+
 Integrantes: 
 - Tiziano Giacomozzi (tizigiacomozzi525@gmail.com)
 - Santiago Díaz (santiago.diazet32@gmail.com)
