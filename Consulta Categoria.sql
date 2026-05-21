@@ -1,8 +1,8 @@
-SELECT 
-    P.NOMBRE,
-    P.PRECIO,
-    C.NOMBRE AS CATEGORIA
-FROM PRODUCTOS P
-INNER JOIN CATEGORIAS C
-    ON P.ID_CATEGORIA = C.ID_CATEGORIA
-WHERE C.NOMBRE = '';
+select 
+    p.nombre,
+    p.precio,
+    c.nombre as categoria
+from productos p
+inner join categorias c
+    on p.id_categoria = c.id_categoria
+where c.nombre = '';
