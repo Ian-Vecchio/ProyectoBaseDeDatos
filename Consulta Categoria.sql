@@ -1,4 +1,3 @@
-
 SELECT 
     P.NOMBRE,
     P.PRECIO,
