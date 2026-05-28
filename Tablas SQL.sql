@@ -79,12 +79,12 @@ create table historial_precio (
     foreign key (id_producto) references productos(id_producto)
 );
 
--- tabla de reseñas de productos
-create table reseñas (
-    id_reseña int primary key,
+-- tabla de valoraciones de productos
+create table valoraciones (
+    id_valoracion int primary key,
     id_publicacion int,
-    titulo_reseña varchar(100),
-    reseña text,
+    titulo_valorcion varchar(100),
+    comentario text,
     imagen varchar(255),
     fecha date,
     foreign key (id_publicacion) references publicacion(id_publicacion)
