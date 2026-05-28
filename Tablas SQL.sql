@@ -30,7 +30,7 @@ create table usuario (
 
 -- tabla de direcciones
 create table direccion (
-    id_direccion int primary key,
+    id_direccion int primary key auto_increment,
     id_usuario int,
     calle varchar(100),
     altura int,
