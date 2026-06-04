@@ -1,22 +1,28 @@
-delimiter $$
-create trigger registrar_compra_y_registrar_stock
-before INSERT ON compra
-for each row
+DELIMITER $$
+
+CREATE TRIGGER registrar_compra_y_registrar_Stock
+BEFORE INSERT ON compra
+FOR EACH ROW
 BEGIN
-declare  STOCK_ANUAL int;
-Select Stock into stock_actual
-from Publicacion
-where id_Publicacion = new.id_publicacion;
+    DECLARE stock_actual INT;
+  
+    SELECT stock INTO stock_actual
+    FROM publicacion
+    WHERE id_publicacion = NEW.id_publicacion;
+  
+    IF stock_actual IS NULL OR stock_actual < NEW.cantidad THEN
+        -- Usamos MESSAGE_TEXT con doble 'S'
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Operacion cancelada: El producto no cuenta con el stock necesario para su adquisicion';
+  
+    ELSE
 
-if stock_actual is Null Or stock_actual <= 0 THEN
-Signal sqlstate '45000'
-SET MESSAGE_TEXT = 'Operacion Cancelada: el producto no tiene stock (Es igual a 0)';
-ELSE
-     UPDATE publicacion
-	 Set stock = stock - 1
-     Where id_publicacion = NEW.id_Publicacion;
-END IF;
+        UPDATE publicacion
+        SET stock = stock - NEW.cantidad
+        WHERE id_publicacion = NEW.id_publicacion;
+  
+    END IF; 
 
-END$$
+END$$ 
 
-DELIMITER  ;
+DELIMITER ;
