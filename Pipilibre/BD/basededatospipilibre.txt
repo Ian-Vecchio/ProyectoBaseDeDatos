@@ -1,0 +1,459 @@
+drop database if exists Lospipislibres;
+create database Lospipislibres;
+use Lospipislibres;
+
+create table Roles (
+    id_rol int auto_increment primary key,
+    Nombre_rol varchar(50) not null
+);
+
+create table usuario(
+    id_usuario int auto_increment primary key not null,
+    Nombre_usuario varchar(15) not null unique,
+    nombre varchar(20),
+    apellido varchar(20),
+    dni int(8),
+    correo_eletronico varchar(100) not null, -- Mantiene tu nombre original
+    contraseña VARCHAR(255) not null,
+    saldo decimal(20,2) default 0,
+    rol int,
+    foreign key (rol) references Roles(id_rol) on delete set null
+);
+
+create table recargas(
+    id_recarga int auto_increment primary key, -- Agregada PK necesaria
+    id_ingresante int,
+    Metodo_de_pago enum('Mercado_pago','VISA','MASTERCARD','IL') not null,
+    Saldo_ingresado int not null,
+    fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    foreign key (id_ingresante) references usuario(id_usuario) on delete cascade
+); 
+
+create table cateogrias (
+    id_catoria int auto_increment primary key, -- Mantiene tu nombre original
+    Nombre_categoria varchar(100) not null
+);
+
+create table publicacion(
+    id_publicacion int auto_increment primary key not null,
+    id_autor int,
+    Nombre_Producto varchar(50) not null,
+    descripcion VARCHAR(255),
+    imagen VARCHAR(255),
+    precio decimal(20,2) not null,
+    stock int,
+    estado varchar(50),
+    categoria int,
+    foreign key (id_autor) references usuario(id_usuario) on delete cascade,
+    foreign key (categoria) references cateogrias(id_catoria) on delete set null
+);
+
+create table compra(
+    id_compra int auto_increment primary key,
+    id_comprador int NOT NULL,
+    id_publicacion int NOT NULL,
+    fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    foreign key (id_comprador) references usuario(id_usuario) on delete cascade,
+    foreign key (id_publicacion) references publicacion(id_publicacion) on delete cascade
+);
+
+create table direccion (
+    id_direccion int primary key auto_increment,
+    id_usuario int,
+    calle varchar(100),
+    altura int,
+    codigo_postal int,
+    foreign key (id_usuario) references usuario(id_usuario) on delete cascade
+);
+
+create table Envio (
+    id_envio int auto_increment primary key,
+    id_comprador int,
+    fecha_envio datetime,
+    fecha_llegada datetime,
+    direccion int,
+    foreign key (id_comprador) references usuario(id_usuario) on delete cascade,
+    foreign key (direccion) references direccion(id_direccion) on delete set null
+);
+
+create table carrito (
+    id_producto int,
+    id_dueño_carrito int,
+    cantidad int,
+    primary key (id_producto, id_dueño_carrito), -- PK compuesta para evitar duplicados
+    foreign key (id_producto) references publicacion(id_publicacion) on delete cascade,
+    foreign key (id_dueño_carrito) references usuario(id_usuario) on delete cascade
+);
+
+create table Reseñas (
+    id_reseña int auto_increment primary key,
+    id_publicacion int,
+    Titulo_reseña varchar(100),
+    reseña text,
+    imagen varchar(255),
+    fecha datetime default current_timestamp,
+    foreign key (id_publicacion) references publicacion(id_publicacion) on delete cascade
+);
+
+create table hitorial_precio (
+    id_historial int auto_increment primary key, -- Agregada PK necesaria
+    id_producto int,
+    precio_antiguo decimal(20,2),
+    fecha_registro datetime default current_timestamp, -- Evita la palabra reservada 'date'
+    foreign key (id_producto) references publicacion(id_publicacion) on delete cascade
+);
+
+insert into Roles (id_rol, Nombre_rol) values 
+(1, 'Administrador'),
+(2, 'Cliente');
+
+alter table usuario add column contraseña_limpia varchar(255) null;
+
+DELIMITER //
+create procedure buscar_productos(in texto_busqueda varchar(50))
+begin
+    select * from publicacion 
+    where Nombre_Producto like concat('%', texto_busqueda, '%');
+end //
+DELIMITER ;
+
+DELIMITER //
+create procedure crearcuenta (
+    in Nombre_usuario varchar(15),
+    in nombre varchar(20),
+    in apellido varchar(20),
+	in dni int(8),
+    in correo_eletronico varchar(100),
+    in contraseña VARCHAR(255)
+)
+begin
+	insert into usuario (Nombre_usuario, nombre,apellido,dni, correo_eletronico,contraseña) 
+    values(Nombre_usuario,nombre,apellido,dni, correo_eletronico,contraseña );
+end
+// DELIMITER ;
+
+DELIMITER //
+create procedure eliminar_todos_tus_productos (
+    in id_usuario_eliminar_all varchar(5)
+)
+begin
+    Delete from publicacion where id_autor = id_usuario_eliminar_all;
+end
+// DELIMITER ;
+
+DELIMITER $$
+CREATE PROCEDURE sup_publicacion_especifica(
+  IN id_publicacion_a_borrar INT
+  )
+  BEGIN
+   DELETE FROM publicacion
+   WHERE id_publicacion = id_publicacion_a_borrar;
+  end 
+$$ Delimiter ;
+
+DELIMITER //
+
+CREATE PROCEDURE sp_procesar_compra_individual(
+    IN id_comprador INT,
+    IN id_vendedor INT,
+    IN precio DECIMAL(20,2),
+    IN id_prod INT,
+    IN id_dir INT
+)
+BEGIN
+    DECLARE v_saldo DECIMAL(20,2);
+    SELECT saldo INTO v_saldo FROM usuario WHERE id_usuario = id_comprador;
+
+    IF v_saldo IS NULL OR v_saldo < precio THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Saldo insuficiente';
+    ELSE
+        START TRANSACTION;
+            UPDATE usuario SET saldo = saldo - precio WHERE id_usuario = id_comprador;
+            UPDATE usuario SET saldo = saldo + precio WHERE id_usuario = id_vendedor;
+            UPDATE publicacion SET stock = stock - 1 WHERE id_publicacion = id_prod;
+
+            INSERT INTO compra (id_comprador, id_publicacion) VALUES (id_comprador, id_prod);
+            INSERT INTO Envio (id_comprador, fecha_envio, fecha_llegada, direccion) 
+            VALUES (id_comprador, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), id_dir);
+        COMMIT;
+    END IF;
+END;
+// DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE recarga(
+    IN id_recargante INT,
+    IN metodo_recarga ENUM('Mercado_pago','VISA','MASTERCARD','IL'),
+    IN saldo_recargado DECIMAL(20,2)
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+    END;
+
+    START TRANSACTION;
+        UPDATE usuario SET saldo = saldo + saldo_recargado WHERE id_usuario = id_recargante;
+        INSERT INTO recargas (id_ingresante, Saldo_ingresado, Metodo_de_pago) VALUES (id_recargante, saldo_recargado, metodo_recarga);
+    COMMIT;
+END 
+// DELIMITER ;
+
+DELIMITER //
+create procedure check_saldo (
+ in id_usuario_check int
+)
+begin
+    select saldo from usuario where id_usuario = id_usuario_check;
+end
+// DELIMITER ;
+
+DELIMITER $$
+CREATE PROCEDURE salida_info_usuario(
+in p_id_usuario int
+)
+begin
+    select * from usuario where id_usuario = p_id_usuario;
+end
+$$ DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE p_agregar_direccion(
+    IN p_id_usuario INT,
+    IN p_calle VARCHAR(100),
+    IN p_altura INT,
+    IN p_codigo_postal INT
+)
+BEGIN
+    INSERT INTO direccion (id_usuario, calle, altura, codigo_postal)
+    VALUES (p_id_usuario, p_calle, p_altura, p_codigo_postal);
+END 
+// DELIMITER ;
+
+DELIMITER $$
+CREATE PROCEDURE sup_direccion_especifica(
+  IN id_direccion_a_borrar INT
+  )
+  BEGIN
+   DELETE FROM direccion WHERE id_direccion = id_direccion_a_borrar;
+  end 
+$$ Delimiter ;
+
+DELIMITER //
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_procesar_compra_carrito(
+    IN p_id_comprador INT,
+    IN p_id_direccion INT
+)
+BEGIN
+    DECLARE v_saldo, v_total DECIMAL(20,2);
+
+    SELECT saldo INTO v_saldo FROM usuario WHERE id_usuario = p_id_comprador;
+    
+    SELECT IFNULL(SUM(p.precio * c.cantidad), 0) INTO v_total FROM carrito c, publicacion p 
+    WHERE c.id_producto = p.id_publicacion AND c.id_dueño_carrito = p_id_comprador;
+
+    IF v_total = 0 OR v_saldo < v_total THEN
+        SIGNAL SQLSTATE '45000';
+    ELSE
+        START TRANSACTION;
+            UPDATE usuario u, (SELECT p.id_autor, SUM(p.precio * c.cantidad) AS tot FROM carrito c, publicacion p WHERE c.id_producto = p.id_publicacion AND c.id_dueño_carrito = p_id_comprador GROUP BY p.id_autor) v 
+            SET u.saldo = u.saldo + v.tot WHERE u.id_usuario = v.id_autor;
+
+            UPDATE usuario SET saldo = saldo - v_total WHERE id_usuario = p_id_comprador;
+
+            UPDATE publicacion p, carrito c SET p.stock = p.stock - c.cantidad 
+            WHERE p.id_publicacion = c.id_producto AND c.id_dueño_carrito = p_id_comprador;
+
+            INSERT INTO compra (id_comprador, id_publicacion) SELECT p_id_comprador, id_producto FROM carrito WHERE id_dueño_carrito = p_id_comprador;
+
+            INSERT INTO Envio (id_comprador, fecha_envio, fecha_llegada, direccion) VALUES (p_id_comprador, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), p_id_direccion);
+
+            DELETE FROM carrito WHERE id_dueño_carrito = p_id_comprador;
+        COMMIT;
+    END IF;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE p_agregar_reseña(
+    IN p_id_publicacion INT,
+    IN p_comentario TEXT
+)
+BEGIN
+    INSERT INTO Reseñas (id_publicacion, reseña, fecha)
+    VALUES (p_id_publicacion, p_comentario, NOW());
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE eliminar_producto_carrito(
+    IN id_p INT, 
+    IN id_u INT
+)
+BEGIN
+    DELETE FROM carrito 
+    WHERE id_producto = id_p 
+      AND id_dueño_carrito = id_u;
+END 
+// DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE verificar_usuario(
+    IN nom_user VARCHAR(50)
+)
+BEGIN
+    SELECT * FROM usuario 
+    WHERE Nombre_usuario = nom_user;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE obtener_publicacion(
+    IN id_p INT
+)
+BEGIN
+    SELECT * FROM publicacion 
+    WHERE id_publicacion = id_p;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_envios_usuario(
+    IN id_u INT
+)
+BEGIN
+    SELECT e.id_envio, e.fecha_envio, e.fecha_llegada, d.calle, d.altura, d.codigo_postal 
+    FROM Envio e
+    INNER JOIN direccion d ON e.direccion = d.id_direccion
+    WHERE e.id_comprador = id_u
+    ORDER BY e.fecha_envio DESC;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_publicaciones_autor(
+    IN id_u INT
+)
+BEGIN
+    SELECT * FROM publicacion 
+    WHERE id_autor = id_u;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_carrito_usuario(
+    IN id_u INT
+)
+BEGIN
+    SELECT c.cantidad, p.id_publicacion, p.Nombre_Producto, p.precio, p.imagen, p.id_autor 
+    FROM carrito c 
+    INNER JOIN publicacion p ON c.id_producto = p.id_publicacion 
+    WHERE c.id_dueño_carrito = id_u;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_direcciones_usuario(
+    IN id_u INT
+)
+BEGIN
+    SELECT id_direccion, calle, altura, codigo_postal 
+    FROM direccion 
+    WHERE id_usuario = id_u;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_todas_publicaciones()
+BEGIN
+    SELECT * FROM publicacion;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE insertar_publicacion(
+    IN id_au INT,
+    IN nom_prod VARCHAR(100),
+    IN img VARCHAR(255),
+    IN desc_prod VARCHAR(255),
+    IN prec_prod DECIMAL(10,2),
+    IN stk INT
+)
+BEGIN
+    INSERT INTO publicacion (id_autor, Nombre_Producto, imagen, descripcion, precio, stock) 
+    VALUES (id_au, nom_prod, img, desc_prod, prec_prod, stk);
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_publicacion_por_id(
+    IN id_p INT
+)
+BEGIN
+    SELECT * FROM publicacion 
+    WHERE id_publicacion = id_p;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_direcciones_por_usuario(
+    IN id_u INT
+)
+BEGIN
+    SELECT id_direccion, calle, altura, codigo_postal 
+    FROM direccion 
+    WHERE id_usuario = id_u;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_reseñas_publicacion(
+    IN id_p INT
+)
+BEGIN
+    SELECT r.reseña, r.fecha 
+    FROM Reseñas r 
+    WHERE r.id_publicacion = id_p 
+    ORDER BY r.fecha DESC;
+END 
+// DELIMITER ;
+DELIMITER //
+
+CREATE PROCEDURE obtener_direccion_usuario_producto(
+    IN id_u INT
+)
+BEGIN
+    SELECT * FROM direccion 
+    WHERE id_usuario = id_u;
+END 
+// DELIMITER ;
+DELIMITER $$
+
+CREATE TRIGGER registrar_compra_y_registrar_Stock
+BEFORE INSERT ON compra
+FOR EACH ROW
+BEGIN
+    DECLARE stock_actual INT;
+  
+    -- Obtener el stock actual
+    SELECT stock INTO stock_actual
+    FROM publicacion
+    WHERE id_publicacion = NEW.id_publicacion;
+  
+    -- SI EL STOCK ES 0 O MENOS, SE ELIMINA LA PUBLICACIÓN
+    IF stock_actual <= 0 THEN
+        DELETE FROM publicacion
+        WHERE id_publicacion = NEW.id_publicacion;
+    END IF;
+
+END$$ 
+
+DELIMITER ;
