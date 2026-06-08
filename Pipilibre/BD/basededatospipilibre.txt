@@ -110,7 +110,7 @@ insert into Roles (id_rol, Nombre_rol) values
 alter table usuario add column contraseña_limpia varchar(255) null;
 
 insert into usuario (Nombre_usuario, nombre, apellido, dni, correo_eletronico, contraseña, saldo, rol, contraseña_limpia) 
-values ('admin', 'Admin', 'Admin', 99999999, 'admin@pipilibre.com', '$2y$10$UbyP8hZ6U6L9Q4P1Z4eSgO2C7D4m5g8eA8H6V7U6p4S7d3q8R2K6m', 500000.00, 1, 'pipiadmin123');
+values ('admin', 'Admin', 'Admin', 99999999, 'admin@pipilibre.com', '$2y$10$$2y$10$QGoAVqbCGyu07qjTMFdLF.I0Aujz1W/3C8ZQAeg61sfkPc5uMhAMG', 500000.00, 1, 'pipiadmin123');
 
 DELIMITER //
 create procedure buscar_productos(in texto_busqueda varchar(50))
